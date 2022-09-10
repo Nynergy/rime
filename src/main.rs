@@ -17,7 +17,10 @@ use crossterm::{
 use std::{
     error::Error,
     io,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant
+    },
 };
 use tui::{
     backend::{
@@ -29,6 +32,7 @@ use tui::{
 
 mod app;
 mod events;
+mod list;
 mod ui;
 
 use app::*;
@@ -44,7 +48,7 @@ fn main() -> DynResult<()> {
     let mut terminal = init_terminal()?;
     terminal.clear()?;
 
-    let app = App::default();
+    let app = App::default()?;
     let tick_rate = Duration::from_millis(1000);
     let res = run_app(&mut terminal, app, tick_rate);
 

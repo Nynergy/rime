@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use tui::{
     backend::Backend,
     buffer::Buffer,
@@ -6,6 +7,7 @@ use tui::{
         Constraint,
         Direction,
         Layout,
+        Margin,
         Rect,
     },
     style::{Color, Modifier, Style},
@@ -14,6 +16,8 @@ use tui::{
     widgets::{
         Block,
         Clear,
+        List,
+        ListItem,
         Paragraph,
         Widget,
     },
@@ -104,7 +108,7 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 }
 
-fn render_tag_editor<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
+fn render_tag_editor<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     if f.size().height > 50 {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -132,7 +136,7 @@ fn render_tag_editor<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
                 )
                 .split(chunks[1]);
 
-            render_file_navigator(f, chunks[0]);
+            render_file_navigator(f, chunks[0], app);
             render_tag_columns(f, chunks[1]);
         } else {
             let chunks = Layout::default()
@@ -146,7 +150,7 @@ fn render_tag_editor<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
                 )
                 .split(chunks[1]);
 
-            render_file_navigator(f, chunks[0]);
+            render_file_navigator(f, chunks[0], app);
             render_tag_columns(f, chunks[1]);
         }
 
@@ -178,7 +182,7 @@ fn render_tag_editor<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
                 )
                 .split(chunks[1]);
 
-            render_file_navigator(f, chunks[0]);
+            render_file_navigator(f, chunks[0], app);
             render_tag_columns(f, chunks[1]);
         } else {
             let chunks = Layout::default()
@@ -192,7 +196,7 @@ fn render_tag_editor<B: Backend>(f: &mut Frame<B>, _app: &mut App) {
                 )
                 .split(chunks[1]);
 
-            render_file_navigator(f, chunks[0]);
+            render_file_navigator(f, chunks[0], app);
             render_tag_columns(f, chunks[1]);
         }
 
@@ -220,7 +224,7 @@ fn render_banner<B: Backend>(
         .block(Block::default())
         .style(
             Style::default()
-            .fg(Color::Blue)
+            .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD)
         )
         .alignment(Alignment::Center);
@@ -244,7 +248,7 @@ fn render_tiny_banner<B: Backend>(
         .block(Block::default())
         .style(
             Style::default()
-            .fg(Color::Blue)
+            .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD)
         )
         .alignment(Alignment::Center);
@@ -273,8 +277,56 @@ fn render_empty_line<B: Backend>(f: &mut Frame<B>, chunk: Rect) {
     f.render_widget(line, chunk);
 }
 
-fn render_file_navigator<B: Backend>(f: &mut Frame<B>, chunk: Rect) {
+fn render_file_navigator<B: Backend>(
+    f: &mut Frame<B>,
+    chunk: Rect,
+    app: &mut App
+) {
     render_column_block(f, chunk, "File Navigator");
+
+    let dir_style = Style::default()
+        .fg(Color::Blue)
+        .add_modifier(Modifier::BOLD);
+    let file_style = Style::default()
+        .fg(Color::Red)
+        .add_modifier(Modifier::BOLD);
+
+    let items: Vec<ListItem> = app
+        .pwd
+        .items
+        .iter()
+        .map(|i| {
+            if i.is_dir() {
+                ListItem::new(i.file_name()
+                              // Handle parent directory
+                              .unwrap_or(OsStr::new(".."))
+                              .to_str()
+                              .unwrap())
+                    .style(dir_style)
+            } else {
+                ListItem::new(i.file_name()
+                              .unwrap()
+                              .to_str()
+                              .unwrap())
+                    .style(file_style)
+            }
+        })
+        .collect();
+
+    let highlight = Style::default()
+        .add_modifier(Modifier::REVERSED);
+
+    let list = List::new(items)
+        .block(Block::default())
+        .highlight_style(highlight);
+
+    let inner_area = shrink_rect(chunk, 1);
+
+    f.render_stateful_widget(
+        list,
+        inner_area,
+        &mut app.pwd.state
+    );
 }
 
 fn render_tag_columns<B: Backend>(f: &mut Frame<B>, chunk: Rect) {
@@ -302,4 +354,9 @@ fn render_column_block<B: Backend>(
         .title(title.to_string());
 
     f.render_widget(container, chunk);
+}
+
+fn shrink_rect(rect: Rect, amount: u16) -> Rect {
+    let margin = Margin { vertical: amount, horizontal: amount };
+    rect.inner(&margin)
 }
