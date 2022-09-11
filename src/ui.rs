@@ -104,11 +104,11 @@ pub fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 
     match app.state {
-        AppState::TagEditor => render_tag_editor(f, app),
+        AppState::FileNavigation => render_main_interface(f, app),
     }
 }
 
-fn render_tag_editor<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+fn render_main_interface<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     if f.size().height > 50 {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -284,32 +284,33 @@ fn render_file_navigator<B: Backend>(
 ) {
     render_column_block(f, chunk, "File Navigator");
 
-    let dir_style = Style::default()
-        .fg(Color::Blue)
-        .add_modifier(Modifier::BOLD);
-    let file_style = Style::default()
-        .fg(Color::Red)
-        .add_modifier(Modifier::BOLD);
+    let mut item_style = Style::default();
 
     let items: Vec<ListItem> = app
         .pwd
         .items
         .iter()
         .map(|i| {
+            item_style = Style::reset();
+
             if i.is_dir() {
-                ListItem::new(i.file_name()
-                              // Handle parent directory
-                              .unwrap_or(OsStr::new(".."))
-                              .to_str()
-                              .unwrap())
-                    .style(dir_style)
+                item_style = item_style.fg(Color::Cyan);
             } else {
-                ListItem::new(i.file_name()
-                              .unwrap()
-                              .to_str()
-                              .unwrap())
-                    .style(file_style)
+                item_style = item_style.fg(Color::Magenta);
             }
+
+            if app.selected_files.contains(i) {
+                item_style = item_style
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD);
+            }
+
+            ListItem::new(i.file_name()
+                          // Handle parent directory
+                          .unwrap_or(OsStr::new(".."))
+                          .to_str()
+                          .unwrap())
+                .style(item_style)
         })
         .collect();
 
