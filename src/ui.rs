@@ -310,11 +310,16 @@ fn render_file_navigator<B: Backend>(
                     .add_modifier(Modifier::BOLD);
             }
 
-            ListItem::new(i.file_name()
-                          // Handle parent directory
-                          .unwrap_or(OsStr::new(".."))
-                          .to_str()
-                          .unwrap())
+            let raw_file_name = i.file_name()
+                  // Handle parent directory
+                  .unwrap_or(OsStr::new(".."))
+                  .to_str()
+                  .unwrap();
+
+            let chopped_file_name = truncate_text(raw_file_name.to_string(),
+                                                  (chunk.width - 2) as usize);
+
+            ListItem::new(chopped_file_name)
                 .style(item_style)
         })
         .collect();
@@ -491,4 +496,13 @@ fn create_bottom_line(lines: &mut Vec<Spans>, width: u16) {
 fn shrink_rect(rect: Rect, amount: u16) -> Rect {
     let margin = Margin { vertical: amount, horizontal: amount };
     rect.inner(&margin)
+}
+
+fn truncate_text(mut text: String, max_length: usize) -> String {
+    if text.len() > max_length {
+        text.truncate(max_length - 3);
+        return format!("{}...", text);
+    }
+
+    text
 }
