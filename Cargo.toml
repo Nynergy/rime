@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 crossterm = "0.25"
 tui = "0.19"
+id3 = "1.3"

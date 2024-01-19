@@ -1,6 +1,12 @@
+use id3::{
+    Tag,
+    TagLike,
+};
 use std::{
     cmp,
+    collections::HashMap,
     env,
+    error,
     fs::{
         self,
         DirEntry,
@@ -19,7 +25,8 @@ pub struct App {
     pub state: AppState,
     pub quit: bool,
     pub pwd: GenericList<PathBuf>,
-    pub selected_files: Vec<PathBuf>,
+    pub selected_files: HashMap<PathBuf, Option<Tag>>,
+    pub tag_sum: HashMap<String, String>,
 }
 
 impl App {
@@ -40,7 +47,8 @@ impl App {
             state: AppState::FileNavigation,
             quit: false,
             pwd: GenericList::<PathBuf>::from(pwd),
-            selected_files: Vec::new(),
+            selected_files: HashMap::new(),
+            tag_sum: HashMap::new(),
         };
 
         Ok(app)
@@ -140,7 +148,7 @@ impl App {
         Ok(())
     }
 
-    pub fn select(&mut self) -> Result<(), io::Error> {
+    pub fn select(&mut self) -> Result<(), Box<dyn error::Error>> {
         match self.state {
             AppState::FileNavigation => {
                 if let Some(entry) = self.pwd.get_selected() {
@@ -157,14 +165,15 @@ impl App {
     fn toggle_select_path(
         &mut self,
         path: PathBuf
-    ) -> Result<(), io::Error> {
-        if let Some(index) = self.selected_files
-            .iter()
-            .position(|p| p == &path)
-        {
-            self.selected_files.remove(index);
+    ) -> Result<(), Box<dyn error::Error>> {
+        if let Some(_) = self.selected_files.get(&path) {
+            self.selected_files.remove(&path);
         } else {
-            self.selected_files.push(path.clone());
+            if let Ok(tags) = Tag::read_from_path(path.clone()) {
+                self.selected_files.insert(path.clone(), Some(tags));
+            } else {
+                self.selected_files.insert(path.clone(), None);
+            }
         }
 
         if path.is_dir() {
@@ -185,7 +194,47 @@ impl App {
             }
         }
 
+        self.update_tag_sum();
+
         Ok(())
+    }
+
+    pub fn update_tag_sum(&mut self) {
+        let tag_list = vec![
+            "TIT2", "TALB", "TPE1", "TPE2",
+            "TRCK", "TPOS", "TCON", "TYER",
+        ];
+
+        self.tag_sum.clear();
+        for tag in tag_list.iter() {
+            self.tag_sum.insert(tag.to_string(), "<none>".to_string());
+        }
+
+        let tags = self.selected_files
+            .iter()
+            .filter_map(|(k, v)| {
+                if k.is_file() {
+                    Some(v.clone().unwrap())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<Tag>>();
+
+        for tag in tags {
+            for tag_name in &tag_list {
+                if let Some(value) = tag.get(tag_name)
+                    .and_then(|frame| frame.content().text())
+                {
+                    let current_value = self.tag_sum.get(&tag_name.to_string()).unwrap();
+                    if (current_value == &"<none>") || (current_value == value) {
+                        self.tag_sum.insert(tag_name.to_string(), value.to_string());
+                    } else {
+                        self.tag_sum.insert(tag_name.to_string(), "<multiple>".to_string());
+                    }
+                }
+            }
+        }
     }
 }
 

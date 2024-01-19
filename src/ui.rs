@@ -1,4 +1,8 @@
-use std::ffi::OsStr;
+use std::{
+    cmp,
+    collections::HashMap,
+    ffi::OsStr,
+};
 use tui::{
     backend::Backend,
     buffer::Buffer,
@@ -18,6 +22,7 @@ use tui::{
         Clear,
         List,
         ListItem,
+        ListState,
         Paragraph,
         Widget,
     },
@@ -137,7 +142,7 @@ fn render_main_interface<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .split(chunks[1]);
 
             render_file_navigator(f, chunks[0], app);
-            render_tag_columns(f, chunks[1]);
+            render_tag_columns(f, chunks[1], app);
         } else {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -151,7 +156,7 @@ fn render_main_interface<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .split(chunks[1]);
 
             render_file_navigator(f, chunks[0], app);
-            render_tag_columns(f, chunks[1]);
+            render_tag_columns(f, chunks[1], app);
         }
 
         render_footer_info(f, chunks[2]);
@@ -183,7 +188,7 @@ fn render_main_interface<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .split(chunks[1]);
 
             render_file_navigator(f, chunks[0], app);
-            render_tag_columns(f, chunks[1]);
+            render_tag_columns(f, chunks[1], app);
         } else {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -197,7 +202,7 @@ fn render_main_interface<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .split(chunks[1]);
 
             render_file_navigator(f, chunks[0], app);
-            render_tag_columns(f, chunks[1]);
+            render_tag_columns(f, chunks[1], app);
         }
 
         render_empty_line(f, chunks[2]);
@@ -299,7 +304,7 @@ fn render_file_navigator<B: Backend>(
                 item_style = item_style.fg(Color::Magenta);
             }
 
-            if app.selected_files.contains(i) {
+            if let Some(_) = app.selected_files.get(i) {
                 item_style = item_style
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD);
@@ -330,7 +335,11 @@ fn render_file_navigator<B: Backend>(
     );
 }
 
-fn render_tag_columns<B: Backend>(f: &mut Frame<B>, chunk: Rect) {
+fn render_tag_columns<B: Backend>(
+    f: &mut Frame<B>,
+    chunk: Rect,
+    app: &App
+) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
@@ -342,7 +351,50 @@ fn render_tag_columns<B: Backend>(f: &mut Frame<B>, chunk: Rect) {
         )
         .split(chunk);
 
+    // TODO: Include the number of selected files in the header here
     render_column_block(f, chunks[0], "Current Tags");
+
+    let inner_area = shrink_rect(chunks[0], 1);
+
+    let tags = vec![
+        "TIT2", "TALB", "TPE1", "TPE2",
+        "TRCK", "TPOS", "TCON", "TYER",
+    ];
+    let tag_names = HashMap::from([
+        ("TIT2", "Title       "),
+        ("TALB", "Album       "),
+        ("TPE1", "Album Artist"),
+        ("TPE2", "Artist      "),
+        ("TRCK", "Track       "),
+        ("TPOS", "Disc        "),
+        ("TCON", "Genre       "),
+        ("TYER", "Year        "),
+    ]);
+    let items: Vec<ListItem> = tags
+        .iter()
+        .map(|i| {
+            ListItem::new(
+                tag_span(
+                    tag_names.get(i).unwrap().to_string(),
+                    match app.tag_sum.get(&i.to_string()) {
+                        Some(value) => value.to_string(),
+                        None => "<none>".to_string(),
+                    },
+                    inner_area.width
+                )
+            )
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(Block::default());
+
+    f.render_stateful_widget(
+        list,
+        inner_area,
+        &mut ListState::default()
+    );
+
     render_column_block(f, chunks[1], "New Tags");
 }
 
@@ -355,6 +407,85 @@ fn render_column_block<B: Backend>(
         .title(title.to_string());
 
     f.render_widget(container, chunk);
+}
+
+fn tag_span<'a>(
+    name: String,
+    value: String,
+    width: u16
+) -> Vec<Spans<'a>> {
+    let mut lines = Vec::new();
+
+    create_top_line(&mut lines, width);
+    create_middle_line(&mut lines, width, name, value);
+    create_bottom_line(&mut lines, width);
+
+    lines
+}
+
+fn create_top_line(lines: &mut Vec<Spans>, width: u16) {
+    let mut line = String::from(line::TOP_LEFT);
+    for _ in 0..width - 2 {
+        line.push_str(line::HORIZONTAL);
+    }
+    line.push_str(line::TOP_RIGHT);
+    lines.push(Spans::from(line));
+}
+
+fn create_middle_line(
+    lines: &mut Vec<Spans>,
+    width: u16,
+    name: String,
+    value: String
+) {
+    // Left Side
+    let line = String::from(
+        format!("{} ", line::VERTICAL)
+    );
+    let mut spans = vec![Span::raw(line)];
+
+    // Name
+    spans.push(Span::styled(
+            format!("{}: ", name),
+            Style::default()
+            .add_modifier(Modifier::BOLD)
+    ));
+
+    // Value
+    spans.push(Span::raw(value));
+
+    // Padding Spaces
+    let current_width = spans
+        .iter()
+        .map(|span| span.width())
+        .sum::<usize>();
+    let remaining_width = cmp::max(
+        ((width - 2) as usize).checked_sub(current_width)
+            .unwrap_or(1),
+        1
+    );
+
+    let mut line = String::new();
+    for _ in 0..remaining_width {
+        line.push_str(" ");
+    }
+    spans.push(Span::raw(line));
+
+    // Right Side
+    let line = String::from(
+        format!(" {}", line::VERTICAL)
+    );
+    spans.push(Span::raw(line));
+    lines.push(Spans::from(spans));
+}
+
+fn create_bottom_line(lines: &mut Vec<Spans>, width: u16) {
+    let mut line = String::from(line::BOTTOM_LEFT);
+    for _ in 0..width - 2 {
+        line.push_str(line::HORIZONTAL);
+    }
+    line.push_str(line::BOTTOM_RIGHT);
+    lines.push(Spans::from(line));
 }
 
 fn shrink_rect(rect: Rect, amount: u16) -> Rect {
