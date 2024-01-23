@@ -1,6 +1,6 @@
 use id3::{
+    Content,
     Tag,
-    TagLike,
 };
 use std::{
     cmp,
@@ -200,41 +200,64 @@ impl App {
     }
 
     pub fn update_tag_sum(&mut self) {
-        let tag_list = vec![
-            "TIT2", "TALB", "TPE1", "TPE2",
-            "TRCK", "TPOS", "TCON", "TYER",
-        ];
-
-        self.tag_sum.clear();
-        for tag in tag_list.iter() {
-            self.tag_sum.insert(tag.to_string(), "<none>".to_string());
-        }
-
         let tags = self.selected_files
             .iter()
             .filter_map(|(k, v)| {
                 if k.is_file() {
-                    Some(v.clone().unwrap())
+                    Some(v.clone().unwrap_or(Tag::new()))
                 } else {
                     None
                 }
             })
             .collect::<Vec<Tag>>();
 
+        self.tag_sum.clear();
         for tag in tags {
-            for tag_name in &tag_list {
-                if let Some(value) = tag.get(tag_name)
-                    .and_then(|frame| frame.content().text())
-                {
-                    let current_value = self.tag_sum.get(&tag_name.to_string()).unwrap();
-                    if (current_value == &"<none>") || (current_value == value) {
-                        self.tag_sum.insert(tag_name.to_string(), value.to_string());
-                    } else {
-                        self.tag_sum.insert(tag_name.to_string(), "<multiple>".to_string());
-                    }
-                }
+            for frame in tag.frames() {
+                let tag_value = match frame.content() {
+                    Content::Text(text) => text.to_string(),
+                    Content::Comment(comment) => comment.text.to_string(),
+                    Content::Picture(picture) => {
+                        let text = format!("{} <{}>", picture.description, picture.mime_type);
+                        text
+                    },
+                    _ => "<other>".to_string()
+                };
+
+                self.add_to_tag_sum(frame.id().to_string(), tag_value);
             }
         }
+    }
+
+    fn add_to_tag_sum(&mut self, key: String, value: String) {
+        if self.tag_sum.contains_key(&key) {
+            // Ignore the case where the values are the same
+            if self.tag_sum.get(&key).unwrap() != &value {
+                self.tag_sum.insert(key, "<multiple>".to_string());
+            }
+        } else {
+            self.tag_sum.insert(key, value);
+        }
+    }
+
+    pub fn num_selected_files(&self) -> usize {
+        let count = self.selected_files
+            .iter()
+            .filter_map(|(path, _)| {
+                if path.is_file() {
+                    Some(1)
+                } else {
+                    None
+                }
+            })
+            .sum::<usize>();
+
+        count
+    }
+
+    pub fn clear_selected_files(&mut self) {
+        self.selected_files.clear();
+        self.update_tag_sum();
     }
 }
 
@@ -253,6 +276,7 @@ fn is_file(res: Result<DirEntry, io::Error>) -> Option<PathBuf> {
     let file_type = entry.file_type().unwrap();
     if file_type.is_file() {
         // Only accept mp3 files
+        // TODO: In the future, we want to accept any filetype that can use id3 tags
         if let Some(extension) = entry.path().extension() {
             if extension == "mp3" {
                 Some(entry.path().canonicalize().unwrap())

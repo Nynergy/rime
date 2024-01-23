@@ -42,6 +42,7 @@ fn handle_file_navigation_events(
         KeyCode::End => app.jump_to_list_bottom(),
         KeyCode::Char(' ') => app.select()?,
         KeyCode::Enter => app.select()?,
+        KeyCode::Char('C') => app.clear_selected_files(),
         _ => {}
     }
 

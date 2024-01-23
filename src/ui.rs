@@ -1,6 +1,5 @@
 use std::{
     cmp,
-    collections::HashMap,
     ffi::OsStr,
 };
 use tui::{
@@ -287,7 +286,7 @@ fn render_file_navigator<B: Backend>(
     chunk: Rect,
     app: &mut App
 ) {
-    render_column_block(f, chunk, "File Navigator");
+    render_column_block(f, chunk, "File Navigator".to_string());
 
     let mut item_style = Style::default();
 
@@ -356,35 +355,40 @@ fn render_tag_columns<B: Backend>(
         )
         .split(chunk);
 
-    // TODO: Include the number of selected files in the header here
-    render_column_block(f, chunks[0], "Current Tags");
+    render_column_block(
+        f, chunks[0],
+        format!("Current Tags ({} Files Selected)", app.num_selected_files())
+    );
+    render_tag_list(f, chunks[0], app);
 
-    let inner_area = shrink_rect(chunks[0], 1);
+    render_column_block(f, chunks[1], "New Tags".to_string());
+}
 
-    let tags = vec![
-        "TIT2", "TALB", "TPE1", "TPE2",
-        "TRCK", "TPOS", "TCON", "TYER",
-    ];
-    let tag_names = HashMap::from([
-        ("TIT2", "Title       "),
-        ("TALB", "Album       "),
-        ("TPE1", "Album Artist"),
-        ("TPE2", "Artist      "),
-        ("TRCK", "Track       "),
-        ("TPOS", "Disc        "),
-        ("TCON", "Genre       "),
-        ("TYER", "Year        "),
-    ]);
-    let items: Vec<ListItem> = tags
+fn render_column_block<B: Backend>(
+    f: &mut Frame<B>,
+    chunk: Rect,
+    title: String
+) {
+    let container = CustomBorder::new()
+        .title(title.to_string());
+
+    f.render_widget(container, chunk);
+}
+
+fn render_tag_list<B: Backend>(
+    f: &mut Frame<B>,
+    chunk: Rect,
+    app: &App
+) {
+    let inner_area = shrink_rect(chunk, 1);
+
+    let items: Vec<ListItem> = app.tag_sum
         .iter()
-        .map(|i| {
+        .map(|(k, v)| {
             ListItem::new(
                 tag_span(
-                    tag_names.get(i).unwrap().to_string(),
-                    match app.tag_sum.get(&i.to_string()) {
-                        Some(value) => value.to_string(),
-                        None => "<none>".to_string(),
-                    },
+                    translate_tag_id(k),
+                    v.to_string(),
                     inner_area.width
                 )
             )
@@ -399,19 +403,6 @@ fn render_tag_columns<B: Backend>(
         inner_area,
         &mut ListState::default()
     );
-
-    render_column_block(f, chunks[1], "New Tags");
-}
-
-fn render_column_block<B: Backend>(
-    f: &mut Frame<B>,
-    chunk: Rect,
-    title: &str
-) {
-    let container = CustomBorder::new()
-        .title(title.to_string());
-
-    f.render_widget(container, chunk);
 }
 
 fn tag_span<'a>(
@@ -491,6 +482,21 @@ fn create_bottom_line(lines: &mut Vec<Spans>, width: u16) {
     }
     line.push_str(line::BOTTOM_RIGHT);
     lines.push(Spans::from(line));
+}
+
+fn translate_tag_id(id: &str) -> String {
+    match id {
+        "APIC" => String::from("Image       "),
+        "COMM" => String::from("Comment     "),
+        "TALB" => String::from("Album       "),
+        "TIT2" => String::from("Title       "),
+        "TPE1" => String::from("Artist      "),
+        "TPE2" => String::from("Album Artist"),
+        "TRCK" => String::from("Track       "),
+        "TSRC" => String::from("ISRC        "),
+        "TYER" => String::from("Date        "),
+        _ => panic!("Could not translate id3 frame '{}'", id)
+    }
 }
 
 fn shrink_rect(rect: Rect, amount: u16) -> Rect {
