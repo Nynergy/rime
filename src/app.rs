@@ -215,11 +215,14 @@ impl App {
         for tag in tags {
             for frame in tag.frames() {
                 let tag_value = match frame.content() {
+                    // TODO: Handle 'TXXX' frames (Custom frame data)
+                    // TODO: Handle 'USLT' frame (Unsynced Lyrics)
+                    // TODO: TCON (Genre) strips out slashes, which is not ideal
                     Content::Text(text) => text.to_string(),
                     Content::Comment(comment) => comment.text.to_string(),
                     Content::Picture(picture) => {
-                        let text = format!("{} <{}>", picture.description, picture.mime_type);
-                        text
+                        // TODO: Handle empty picture description
+                        format!("{} <{}>", picture.description, picture.mime_type)
                     },
                     _ => "<other>".to_string()
                 };

@@ -382,6 +382,7 @@ fn render_tag_list<B: Backend>(
 ) {
     let inner_area = shrink_rect(chunk, 1);
 
+    // TODO: Sort tag frames before rendering them
     let items: Vec<ListItem> = app.tag_sum
         .iter()
         .map(|(k, v)| {
@@ -489,12 +490,18 @@ fn translate_tag_id(id: &str) -> String {
         "APIC" => String::from("Image       "),
         "COMM" => String::from("Comment     "),
         "TALB" => String::from("Album       "),
+        "TCON" => String::from("Genre       "),
         "TIT2" => String::from("Title       "),
         "TPE1" => String::from("Artist      "),
         "TPE2" => String::from("Album Artist"),
+        "TPOS" => String::from("Disc        "),
         "TRCK" => String::from("Track       "),
         "TSRC" => String::from("ISRC        "),
+        "TSSE" => String::from("Encoding    "),
         "TYER" => String::from("Date        "),
+        // TODO: We may not want to handle custom frame data
+        "TXXX" => String::from("Custom Frame"),
+        "USLT" => String::from("Lyrics      "),
         _ => panic!("Could not translate id3 frame '{}'", id)
     }
 }
